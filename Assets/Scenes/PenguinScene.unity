@@ -1050,6 +1050,7 @@ GameObject:
   - component: {fileID: 1271986421}
   - component: {fileID: 1271986422}
   - component: {fileID: 1271986423}
+  - component: {fileID: 1271986424}
   m_Layer: 3
   m_Name: Player
   m_TagString: Player
@@ -1115,6 +1116,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   walkSpeed: 7
   sprintSpeed: 10
+  slideSpeed: 30
+  speedIncreaseMultiplier: 1.5
+  slopeIncreaseMultiplier: 2.5
   groundDrag: 4
   jumpForce: 12
   jumpCooldown: 0.25
@@ -1130,6 +1134,25 @@ MonoBehaviour:
   maxSlopeAngel: 40
   orientation: {fileID: 449258127}
   state: 0
+  sliding: 0
+--- !u!114 &1271986424
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1271986420}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c456cb57d0dcb436db53a2688b515fe6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sliding
+  orientantion: {fileID: 449258127}
+  playerObj: {fileID: 1635386847}
+  maxSlidingTime: 0.75
+  slideForce: 200
+  slideYScale: 0.5
+  slideKey: 306
 --- !u!1 &1635386846
 GameObject:
   m_ObjectHideFlags: 0
