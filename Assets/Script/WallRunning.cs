@@ -126,6 +126,14 @@ public class WallRunning : MonoBehaviour
             // (만약 벽타기 중 약간씩 떨어지는 연출이 필요하다면 0f 대신 -1f 같은 작은 음수 값 지정 가능)
         }
         // -------------------------------------------------------------
+
+// --- 추가된 부분: 곡면 벽 대응 동적 90도 정렬 ---
+        // 캐릭터의 이동축/레이캐스트축(orientation)을 벽의 진행방향(wallForward)에 맞춤.
+        // 부드럽게 곡선을 따라가도록 Slerp(구면 선형 보간) 적용. 수치를 높일수록 벽에 찰싹 붙어 회전.
+        Quaternion targetRotation = Quaternion.LookRotation(wallForward);
+        orientation.rotation = Quaternion.Slerp(orientation.rotation, targetRotation, Time.deltaTime * 15f);
+        // --------------------------------------------------
+
     }
 
     private void StopWallRun()
