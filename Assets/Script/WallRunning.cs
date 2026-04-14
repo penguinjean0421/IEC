@@ -8,16 +8,10 @@ public class WallRunning : MonoBehaviour
     public float wallRunForce;
     public float wallJumpUpForce;
     public float wallJumpSideForce;
-    public float wallClimbSpeed;
-    public float maxWallRunTime;
-    private float wallRunTimer;
 
     [Header("Input")]
     public KeyCode jumpKey = KeyCode.Space;
-    public KeyCode upwardsRunKey = KeyCode.LeftShift;
-    public KeyCode downwardsRunKey = KeyCode.LeftControl;
-    private bool upwardsRunning;
-    private bool downwardsRunning;
+    public KeyCode dropKey = KeyCode.LeftControl;
     private float horizontalInput;
     private float verticalInput;
 
@@ -68,70 +62,41 @@ public class WallRunning : MonoBehaviour
         wallLeft = Physics.Raycast(transform.position, -orientation.right, out leftWallhit, wallCheckDistance, whatIsWall);
     }
 
-    private bool AboveGround()
-    {
-        return !Physics.Raycast(transform.position, Vector3.down, minJumpHeight, whatIsGround);
-    }
+    private bool AboveGround() => !Physics.Raycast(transform.position, Vector3.down, minJumpHeight, whatIsGround);
 
     private void StateMachine()
     {
-        // Getting Inputs
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
-        upwardsRunning = Input.GetKey(upwardsRunKey);
-        downwardsRunning = Input.GetKey(downwardsRunKey);
-
-        // State 1 - Wallrunning
+        // State 1 - Wallrunning (조건: 벽 접촉 + 전진 입력 + 공중 + 탈출 중 아님)
         if((wallLeft || wallRight) && verticalInput > 0 && AboveGround() && !exitingWall)
         {
-            if (!pm.wallrunning)
-                StartWallRun();
+            if (!pm.wallrunning) StartWallRun();
 
-            // wallrun timer
-            if (wallRunTimer > 0)
-                wallRunTimer -= Time.deltaTime;
-
-            if(wallRunTimer <= 0 && pm.wallrunning)
-            {
-                exitingWall = true;
-                exitWallTimer = exitWallTime;
-            }
-
-            // wall jump
             if (Input.GetKeyDown(jumpKey)) WallJump();
+            if (Input.GetKeyDown(dropKey)) DropWall();
         }
-
         // State 2 - Exiting
         else if (exitingWall)
         {
-            if (pm.wallrunning)
-                StopWallRun();
+            if (pm.wallrunning) StopWallRun();
 
-            if (exitWallTimer > 0)
-                exitWallTimer -= Time.deltaTime;
-
-            if (exitWallTimer <= 0)
-                exitingWall = false;
+            if (exitWallTimer > 0) exitWallTimer -= Time.deltaTime;
+            if (exitWallTimer <= 0) exitingWall = false;
         }
-
-        // State 3 - None
+        // State 3 - None (벽에서 떨어지거나 전진 입력을 뗐을 때)
         else
         {
-            if (pm.wallrunning)
-                StopWallRun();
+            if (pm.wallrunning) StopWallRun();
         }
     }
 
     private void StartWallRun()
     {
         pm.wallrunning = true;
-
-        wallRunTimer = maxWallRunTime;
-
         rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
 
-        // apply camera effects
         cam.DoFov(90f);
         if (wallLeft) cam.DoTilt(-5f);
         if (wallRight) cam.DoTilt(5f);
@@ -140,55 +105,51 @@ public class WallRunning : MonoBehaviour
     private void WallRunningMovement()
     {
         rb.useGravity = useGravity;
-
         Vector3 wallNormal = wallRight ? rightWallhit.normal : leftWallhit.normal;
-
         Vector3 wallForward = Vector3.Cross(wallNormal, transform.up);
 
         if ((orientation.forward - wallForward).magnitude > (orientation.forward - -wallForward).magnitude)
             wallForward = -wallForward;
 
-        // forward force
         rb.AddForce(wallForward * wallRunForce, ForceMode.Force);
+        rb.AddForce(-wallNormal * 100, ForceMode.Force);
 
-        // upwards/downwards force
-        if (upwardsRunning)
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, wallClimbSpeed, rb.linearVelocity.z);
-        if (downwardsRunning)
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, -wallClimbSpeed, rb.linearVelocity.z);
-
-        // push to wall force
-        if (!(wallLeft && horizontalInput > 0) && !(wallRight && horizontalInput < 0))
-            rb.AddForce(-wallNormal * 100, ForceMode.Force);
-
-        // weaken gravity
-        if (useGravity)
-            rb.AddForce(transform.up * gravityCounterForce, ForceMode.Force);
+        // --- 수정된 부분: 중력 상쇄(힘) 대신 Y축 속도를 0으로 강제 고정 ---
+        if (!useGravity) // Inspector에서 useGravity를 끄거나, 아래 로직으로 강제 고정
+        {
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        }
+        else
+        {
+            // useGravity가 체크되어 있더라도 벽타기 중에는 떨어지지 않게 묶음
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z); 
+            // (만약 벽타기 중 약간씩 떨어지는 연출이 필요하다면 0f 대신 -1f 같은 작은 음수 값 지정 가능)
+        }
+        // -------------------------------------------------------------
     }
 
     private void StopWallRun()
     {
         pm.wallrunning = false;
-
-        // reset camera effects
         cam.DoFov(80f);
         cam.DoTilt(0f);
     }
 
     private void WallJump()
     {
-        // enter exiting wall state
-        exitingWall = true;
-        exitWallTimer = exitWallTime;
-
+        ExitRoutine();
         Vector3 wallNormal = wallRight ? rightWallhit.normal : leftWallhit.normal;
-
         Vector3 forceToApply = transform.up * wallJumpUpForce + wallNormal * wallJumpSideForce;
 
-        // reset y velocity and add force
         rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
         rb.AddForce(forceToApply, ForceMode.Impulse);
     }
 
+    private void DropWall() => ExitRoutine();
 
+    private void ExitRoutine()
+    {
+        exitingWall = true;
+        exitWallTimer = exitWallTime;
+    }
 }
