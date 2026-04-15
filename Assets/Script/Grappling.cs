@@ -60,28 +60,31 @@ private float animationTimer;
     {
         if (grapplingCdTimer > 0) return;
 
-        animationTimer = 0f;
-
-        grappling = true;
-
-        pm.freeze = true;
-        Debug.DrawRay(cam.position, cam.forward * maxGrappleDistance, Color.green, 2f);
+        // [전처리] 레이캐스트로 미리 타격 여부 확인
         RaycastHit hit;
-        if(Physics.Raycast(cam.position, cam.forward, out hit, maxGrappleDistance, whatIsGrappleable))
-        {
-            Debug.Log("We hit: " + hit.collider.name);
-            grapplePoint = hit.point;
+        bool hitSomething = Physics.Raycast(cam.position, cam.forward, out hit, maxGrappleDistance, whatIsGrappleable);
 
-            Invoke(nameof(ExecuteGrapple), grappleDelayTime);
-        }
-        else
+        // 1. 벽에 맞지 않았다면 아무 일도 하지 않고 즉시 종료
+        if (!hitSomething) 
         {
-            Debug.Log("We didn't hit anything");
-            grapplePoint = cam.position + cam.forward * maxGrappleDistance;
-
-            Invoke(nameof(StopGrapple), grappleDelayTime);
+            Debug.Log("No Target: Grapple Canceled");
+            return; 
         }
 
+        // 2. 여기서부터는 '성공'이 확정된 상태에서만 실행됨
+        animationTimer = 0f;
+        grappling = true;
+        
+        // 상태 전환 및 물리 정지
+        pm.state = PlayerMovement.MovementState.grappling;
+        pm.freeze = true;
+
+        // 타격 지점 저장 및 실행 예약
+        Debug.Log("We hit: " + hit.collider.name);
+        grapplePoint = hit.point;
+        Invoke(nameof(ExecuteGrapple), grappleDelayTime);
+
+        // 라인 렌더러 활성화
         lr.enabled = true;
         lr.SetPosition(1, grapplePoint);
     }
@@ -89,6 +92,7 @@ private float animationTimer;
     private void ExecuteGrapple()
     {
         pm.freeze = false;
+        pm.grappling = true;
 
         Vector3 lowestPoint = new Vector3(transform.position.x, transform.position.y - 1f, transform.position.z);
 
@@ -105,12 +109,14 @@ private float animationTimer;
     public void StopGrapple()
     {
         pm.freeze = false;
-
+        pm.grappling = false;
         grappling = false;
 
+        // [핵심] 그래플링이 정상적으로 종료되는 이 시점에만 쿨다운을 할당함
         grapplingCdTimer = grapplingCd;
 
         lr.enabled = false;
+        pm.state = PlayerMovement.MovementState.air;
     }
 
     public bool IsGrappling()

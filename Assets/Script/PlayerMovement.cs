@@ -81,6 +81,7 @@ public class PlayerMovement : MonoBehaviour
         crouching,
         dashing,
         sliding,
+        grappling,
         air,
     }
 
@@ -95,6 +96,8 @@ public class PlayerMovement : MonoBehaviour
 
     public bool activeGrapple;
     public bool swinging;
+
+    public bool grappling;
 
     private MovementState lastState;
     private bool keepMomentum;
@@ -158,7 +161,11 @@ public class PlayerMovement : MonoBehaviour
 
     private void StateHandler()
     {
-        if (freeze)
+        if (grappling)
+        {
+            state = MovementState.grappling;
+        }
+        else if (freeze)
         {
             state = MovementState.freeze;
             moveSpeed = 0;
@@ -267,7 +274,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void MovePlayer()
     {
-        if (state == MovementState.dashing) return;
+        if (state == MovementState.dashing || state == MovementState.grappling) return;
 
         // calculate movement direction
         moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
@@ -295,31 +302,33 @@ public class PlayerMovement : MonoBehaviour
 
 
     private void SpeedControl()
+{
+    // 1. 예외 상태: 속도 제한을 완전히 풀어야 하는 경우 (그래플링, 대시 등)
+    if (activeGrapple || dashing) return; 
+
+    // 2. 현재 이동 목표 속도(moveSpeed)를 기준으로 잡되, 
+    // 공중에서는 조금 더 여유를 주고 싶다면 별도의 multiplier를 곱할 수 있음
+    float targetMaxSpeed = moveSpeed;
+
+    // 3. 경사로 로직 (기존 유지 - 3D 벡터 전체 제한)
+    if (OnSlope() && !exitingSlope)
     {
-        if (activeGrapple) return;
-        
-        // limiting speed on slope
-        if (OnSlope() && !exitingSlope)
-        {
-            if (rb.linearVelocity.magnitude > moveSpeed)
-                rb.linearVelocity = rb.linearVelocity.normalized * moveSpeed;
-        }
-
-        // limiting speed on ground or in air
-        else
-        {
-            Vector3 flatVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
-
-            // limit velocity if needed
-            if (flatVel.magnitude > moveSpeed)
-            {
-                Vector3 limitedVel = flatVel.normalized * moveSpeed;
-                rb.linearVelocity = new Vector3(limitedVel.x, rb.linearVelocity.y, limitedVel.z);
-            }
-        }
-
-        
+        if (rb.linearVelocity.magnitude > targetMaxSpeed)
+            rb.linearVelocity = rb.linearVelocity.normalized * targetMaxSpeed;
     }
+    // 4. 일반 지면 및 공중 (수평 속도 XZ만 제한)
+    else
+    {
+        Vector3 flatVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+
+        if (flatVel.magnitude > targetMaxSpeed)
+        {
+            Vector3 limitedVel = flatVel.normalized * targetMaxSpeed;
+            // Y축(중력)은 건드리지 않고 수평 속도만 칼같이 제한
+            rb.linearVelocity = new Vector3(limitedVel.x, rb.linearVelocity.y, limitedVel.z);
+        }
+    }
+}
 
     private void Jump()
     {
