@@ -82,8 +82,10 @@ public class PlayerMovement : MonoBehaviour
         dashing,
         sliding,
         grappling,
+        swinging,
         air,
     }
+    public bool swinging;
 
     public bool dashing;
 
@@ -95,7 +97,6 @@ public class PlayerMovement : MonoBehaviour
     public bool freeze;
 
     public bool activeGrapple;
-    public bool swinging;
 
     public bool grappling;
 
@@ -161,7 +162,11 @@ public class PlayerMovement : MonoBehaviour
 
     private void StateHandler()
     {
-        if (grappling)
+        if (swinging)
+        {
+            state = MovementState.swinging;
+        }
+        else if (grappling)
         {
             state = MovementState.grappling;
         }

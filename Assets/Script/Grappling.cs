@@ -52,7 +52,7 @@ private float animationTimer;
 
     private void LateUpdate()
     {
-         if (grappling)
+        if (grappling)
             DrawRopeAnimated();
     }
 
@@ -86,6 +86,8 @@ private float animationTimer;
 
         // 라인 렌더러 활성화
         lr.enabled = true;
+        lr.positionCount = animationQuality; 
+
         lr.SetPosition(1, grapplePoint);
     }
 
