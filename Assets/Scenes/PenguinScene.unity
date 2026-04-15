@@ -2022,9 +2022,8 @@ MonoBehaviour:
   pm: {fileID: 1271986423}
   orientation: {fileID: 449258127}
   rb: {fileID: 1271986422}
-  horizontalThrustForce: 2000
-  forwardThrustForce: 4000
-  extendCableSpeed: 20
+  horizontalThrustForce: 1000
+  forwardThrustForce: 500
   predictionSphereCastRadius: 3
   predictionPoint: {fileID: 1967713711}
   swingKey: 323

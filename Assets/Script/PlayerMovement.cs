@@ -279,7 +279,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void MovePlayer()
     {
-        if (state == MovementState.dashing || state == MovementState.grappling) return;
+        if (state == MovementState.dashing || state == MovementState.grappling || state == MovementState.swinging) return;
 
         // calculate movement direction
         moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
@@ -309,7 +309,7 @@ public class PlayerMovement : MonoBehaviour
     private void SpeedControl()
 {
     // 1. 예외 상태: 속도 제한을 완전히 풀어야 하는 경우 (그래플링, 대시 등)
-    if (activeGrapple || dashing) return; 
+    if (activeGrapple || dashing || swinging) return;
 
     // 2. 현재 이동 목표 속도(moveSpeed)를 기준으로 잡되, 
     // 공중에서는 조금 더 여유를 주고 싶다면 별도의 multiplier를 곱할 수 있음
