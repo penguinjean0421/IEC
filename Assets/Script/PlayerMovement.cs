@@ -10,6 +10,13 @@ public class PlayerMovement : MonoBehaviour
     public float slideSpeed;
     public float wallrunSpeed;
 
+    public float dashSpeed;
+    public float dashSpeedChangeFactor;
+
+    private float speedChangeFactor;
+
+
+
     private float desiredMoveSpeed;
     private float lastDesiredMoveSpeed;
 
@@ -60,14 +67,20 @@ public class PlayerMovement : MonoBehaviour
         sprinting,
         wallrunning,
         crouching,
+        dashing,
         sliding,
         air,
     }
+
+    public bool dashing;
 
     public bool sliding;
     public bool wallrunning;
 
     public bool crouching;          //이거 영상에 나오던데? 왜 없었지
+
+    private MovementState lastState;
+    private bool keepMomentum;
 
     private void Start()
     {
@@ -128,6 +141,13 @@ public class PlayerMovement : MonoBehaviour
 
     private void StateHandler()
     {
+        // Mode - Dashing
+        if (dashing)
+        {
+            state = MovementState.dashing;
+            desiredMoveSpeed = dashSpeed;
+            speedChangeFactor = dashSpeedChangeFactor;
+        }
         // Mode - Wallrunning
         if (wallrunning)
         {
@@ -179,51 +199,53 @@ public class PlayerMovement : MonoBehaviour
             state = MovementState.air;
         }
 
-        // check if desiredMoveSpeed has changee drastically
-        if (Mathf.Abs(desiredMoveSpeed - lastDesiredMoveSpeed) > 4f && moveSpeed != 0)
-        {
-            StopAllCoroutines();
-            StartCoroutine(SmoothlyLerpMoveSpeed());
-        }
-        else
-        {
-            moveSpeed = desiredMoveSpeed;
-        }
+        bool desiredMoveSpeedHasChanged = desiredMoveSpeed != lastDesiredMoveSpeed;
+        if (lastState == MovementState.dashing) keepMomentum = true;
 
-        lastDesiredMoveSpeed = desiredMoveSpeed;
+        if (desiredMoveSpeedHasChanged)
+        {
+            if (keepMomentum)
+            {
+                StopAllCoroutines();
+                StartCoroutine(SmoothlyLerpMoveSpeed());
+            }
+            else
+            {
+                StopAllCoroutines();
+                moveSpeed = desiredMoveSpeed;
+            }
+        }
     }
 
     private IEnumerator SmoothlyLerpMoveSpeed()
     {
-        // Smoothly lerp movementSpeed to desired value
-        float time = 0f;
+        // smoothly lerp movementSpeed to desired value
+        float time = 0;
         float difference = Mathf.Abs(desiredMoveSpeed - moveSpeed);
         float startValue = moveSpeed;
+
+        float boostFactor = speedChangeFactor;
 
         while (time < difference)
         {
             moveSpeed = Mathf.Lerp(startValue, desiredMoveSpeed, time / difference);
 
-            if (OnSlope())
-            {
-                float slopeAngle = Vector3.Angle(Vector3.up, slopeHit.normal);
-                float slopeAngleIncrease = 1 + (slopeAngle / 90f);
-                time += Time.deltaTime * speedIncreaseMultiplier * slopeIncreaseMultiplier * slopeAngleIncrease;
-            }
-
-            else
-            {
-                time += Time.deltaTime * speedIncreaseMultiplier;
-            }
+            time += Time.deltaTime * boostFactor;
 
             yield return null;
         }
 
         moveSpeed = desiredMoveSpeed;
+        speedChangeFactor = 1f;
+        keepMomentum = false;
     }
+
 
     private void MovePlayer()
     {
+        if (state == MovementState.dashing) return;
+
+        // calculate movement direction
         moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
 
         // on slope
@@ -232,50 +254,45 @@ public class PlayerMovement : MonoBehaviour
             rb.AddForce(GetSlopeMoveDirection(moveDirection) * moveSpeed * 20f, ForceMode.Force);
 
             if (rb.linearVelocity.y > 0)
-            {
                 rb.AddForce(Vector3.down * 80f, ForceMode.Force);
-            }
         }
 
-        // on groud
-        if (grounded)
-        {
+        // on ground
+        else if (grounded)
             rb.AddForce(moveDirection.normalized * moveSpeed * 10f, ForceMode.Force);
-        }
 
-        //in air
-        if (!grounded)
-        {
+        // in air
+        else if (!grounded)
             rb.AddForce(moveDirection.normalized * moveSpeed * 10f * airMultiplier, ForceMode.Force);
-        }
 
-        // trun gravity off while on slope
-        rb.useGravity = !OnSlope();
+        // turn gravity off while on slope
+        rb.useGravity = !OnSlope() && !dashing;
     }
 
 
     private void SpeedControl()
     {
         // limiting speed on slope
-        if (OnSlope())
+        if (OnSlope() && !exitingSlope)
         {
             if (rb.linearVelocity.magnitude > moveSpeed)
-            {
                 rb.linearVelocity = rb.linearVelocity.normalized * moveSpeed;
-            }
         }
 
-        // limiting speed on ground
+        // limiting speed on ground or in air
         else
         {
             Vector3 flatVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
 
+            // limit velocity if needed
             if (flatVel.magnitude > moveSpeed)
             {
                 Vector3 limitedVel = flatVel.normalized * moveSpeed;
                 rb.linearVelocity = new Vector3(limitedVel.x, rb.linearVelocity.y, limitedVel.z);
             }
         }
+
+        
     }
 
     private void Jump()

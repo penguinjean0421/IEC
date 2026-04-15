@@ -1366,6 +1366,7 @@ GameObject:
   - component: {fileID: 1271986423}
   - component: {fileID: 1271986424}
   - component: {fileID: 1271986425}
+  - component: {fileID: 1271986428}
   - component: {fileID: 1271986427}
   m_Layer: 3
   m_Name: Player
@@ -1435,6 +1436,8 @@ MonoBehaviour:
   sprintSpeed: 10
   slideSpeed: 30
   wallrunSpeed: 10
+  dashSpeed: 20
+  dashSpeedChangeFactor: 2
   speedIncreaseMultiplier: 1.5
   slopeIncreaseMultiplier: 2.5
   groundDrag: 4
@@ -1452,6 +1455,7 @@ MonoBehaviour:
   maxSlopeAngel: 40
   orientation: {fileID: 449258127}
   state: 0
+  dashing: 0
   sliding: 0
   wallrunning: 0
   crouching: 0
@@ -1539,6 +1543,30 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CheckPoint
   defaultColor: {r: 1, g: 1, b: 1, a: 1}
+--- !u!114 &1271986428
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1271986420}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d2d27f68addee1469e680c86c4e3e66, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Dashing
+  orientation: {fileID: 449258127}
+  playerCam: {fileID: 14125727}
+  dashForce: 20
+  dashDuration: 0.25
+  cam: {fileID: 14125731}
+  dashFov: 110
+  useCameraForward: 0
+  allowAllDirections: 1
+  disableGravity: 1
+  resetVel: 1
+  dashCd: 0
+  dashKey: 101
 --- !u!1 &1279011144
 GameObject:
   m_ObjectHideFlags: 0
