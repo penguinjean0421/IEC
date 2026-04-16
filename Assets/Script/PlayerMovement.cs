@@ -117,8 +117,8 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         //ground check
-        grounded = Physics.Raycast(transform.position, Vector3.down, playerHeight * 0.5f + 0.2f, whatIsGround);
-        Debug.DrawRay(transform.position, Vector3.down * (playerHeight * 0.5f + 0.2f), Color.red);
+        grounded = Physics.Raycast(transform.position, currentGravity.normalized, playerHeight * 0.5f + 0.2f, whatIsGround);
+        Debug.DrawRay(transform.position, currentGravity.normalized * (playerHeight * 0.5f + 0.2f), Color.red);
         //handle drag
         if (grounded) rb.linearDamping = groundDrag;
         else { rb.linearDamping = 0; }
@@ -156,14 +156,14 @@ public class PlayerMovement : MonoBehaviour
         if (Input.GetKeyDown(crouchKey))
         {
             transform.localScale = new Vector3(transform.localScale.x, crouchYScale, transform.localScale.z);
-            rb.AddForce(Vector3.down * 5f, ForceMode.Impulse);
+            rb.AddForce(currentGravity.normalized * 5f, ForceMode.Impulse);
         }
 
         // stop crouch
         if (Input.GetKeyUp(crouchKey))
         {
             transform.localScale = new Vector3(transform.localScale.x, startYScale, transform.localScale.z);
-            rb.AddForce(Vector3.down * 5f, ForceMode.Impulse);
+            rb.AddForce(currentGravity.normalized * 5f, ForceMode.Impulse);
         }
     }
 
@@ -328,19 +328,26 @@ public class PlayerMovement : MonoBehaviour
         if (rb.linearVelocity.magnitude > targetMaxSpeed)
             rb.linearVelocity = rb.linearVelocity.normalized * targetMaxSpeed;
     }
-    // 4. 일반 지면 및 공중 (수평 속도 XZ만 제한)
-    else
-    {
-        Vector3 flatVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
-
-        if (flatVel.magnitude > targetMaxSpeed)
+        // 4. 일반 지면 및 공중 (수평 속도 XZ만 제한)
+        else
         {
-            Vector3 limitedVel = flatVel.normalized * targetMaxSpeed;
-            // Y축(중력)은 건드리지 않고 수평 속도만 칼같이 제한
-            rb.linearVelocity = new Vector3(limitedVel.x, rb.linearVelocity.y, limitedVel.z);
+            // 1. 현재 속도를 중력 평면(현재 바닥/벽)에 투영하여 수평 속도(flatVel)만 추출
+            Vector3 flatVel = Vector3.ProjectOnPlane(rb.linearVelocity, currentGravity);
+
+            if (flatVel.magnitude > targetMaxSpeed)
+            {
+                // 2. 수평 속도의 방향은 유지한 채 길이(속력)만 최대치로 제한
+                Vector3 limitedVel = flatVel.normalized * targetMaxSpeed;
+
+                // 3. 원래 전체 속도에서 방금 구했던 투영 전 수평 속도를 빼면, 
+                // 순수하게 '중력 방향(추락 또는 점프)'의 속도만 남게 됨
+                Vector3 gravityVel = rb.linearVelocity - flatVel;
+
+                // 4. 제한된 수평 속도와 원래의 중력 속도를 더하여 최종 속도 적용
+                rb.linearVelocity = limitedVel + gravityVel;
+            }
         }
     }
-}
 
     private void Jump()
     {
@@ -391,7 +398,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (Physics.Raycast(transform.position, Vector3.down, out slopeHit, playerHeight * 0.5f + 0.3f))
         {
-            float angle = Vector3.Angle(Vector3.up, slopeHit.normal);
+            float angle = Vector3.Angle(-currentGravity.normalized, slopeHit.normal);
             return angle < maxSlopeAngel && angle != 0;
         }
         return false;
@@ -431,12 +438,61 @@ public class PlayerMovement : MonoBehaviour
         {
             Vector3 wallNormal = collision.contacts[0].normal;
             currentGravity = -wallNormal;
+
+            StartCoroutine(RotatePlayerToNewGravity(wallNormal));
+
+            StopCoroutine(nameof(RotatePlayerToSurface)); 
+            StartCoroutine(RotatePlayerToSurface(wallNormal));
         }
-
-
-
 
     }
 
+
+    IEnumerator RotatePlayerToNewGravity(Vector3 newUp)
+    {
+        // 플레이어의 현재 회전값
+        Quaternion startRotation = transform.rotation;
+
+        // 현재 위쪽(transform.up)을 새로운 위쪽(newUp = 벽의 법선 벡터)으로 맞추는 회전값 계산
+        // 기존의 시야 방향(Forward)을 최대한 유지하기 위해 현재 회전값을 곱해줌
+        Quaternion targetRotation = Quaternion.FromToRotation(transform.up, newUp) * transform.rotation;
+
+        float time = 0f;
+        float duration = 0.5f; // 시점이 돌아가는 데 걸리는 시간 (멀미 방지용 보간)
+
+        while (time < 1f)
+        {
+            time += Time.deltaTime / duration;
+            // 구면 선형 보간(Slerp)으로 부드러운 회전 적용
+            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, time);
+            yield return null;
+        }
+
+        transform.rotation = targetRotation; // 오차 보정을 위해 최종값 강제 삽입
+    }
+
+    private IEnumerator RotatePlayerToSurface(Vector3 targetUp)
+    {
+        // 1. 현재 회전 상태 저장
+        Quaternion startRotation = transform.rotation;
+
+        // 2. 목표 회전 상태 계산: 현재의 '위쪽(transform.up)'을 '목표 위쪽(targetUp)'으로 맞춤
+        // * transform.rotation을 곱해주는 이유는 현재 바라보고 있는 시야(앞쪽)를 최대한 유지하기 위함입니다.
+        Quaternion targetRotation = Quaternion.FromToRotation(transform.up, targetUp) * transform.rotation;
+
+        float time = 0f;
+        float duration = 0.4f; // 회전하는 데 걸리는 시간 (멀미가 나면 늘리고, 답답하면 줄이세요)
+
+        // 3. duration 시간 동안 부드럽게(Slerp) 회전
+        while (time < 1f)
+        {
+            time += Time.deltaTime / duration;
+            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, time);
+            yield return null;
+        }
+
+        // 4. 오차 보정을 위해 마지막에 정확한 값으로 강제 고정
+        transform.rotation = targetRotation;
+    }
 
 }
