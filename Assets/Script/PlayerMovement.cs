@@ -94,7 +94,7 @@ public class PlayerMovement : MonoBehaviour
     public bool sliding;
     public bool wallrunning;
 
-    public bool crouching;          //이거 영상에 나오던데? 왜 없었지
+    public bool crouching;          //이거 영상에 나오던데? 왜 없었지 냠냠
 
     public bool freeze;
 
@@ -133,7 +133,10 @@ public class PlayerMovement : MonoBehaviour
     {
         MovePlayer();
 
-        rb.AddForce(currentGravity * gravityForce, ForceMode.Acceleration);
+        if (!dashing || !wallrunning || !grappling || !freeze)
+        {
+            rb.AddForce(currentGravity * gravityForce, ForceMode.Acceleration);
+        }
     }
 
     private void MyInput()
