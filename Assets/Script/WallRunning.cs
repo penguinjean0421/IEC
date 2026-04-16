@@ -104,7 +104,7 @@ public class WallRunning : MonoBehaviour
 
     private void WallRunningMovement()
     {
-        rb.useGravity = useGravity;
+        pm.isGraviting = useGravity;
         Vector3 wallNormal = wallRight ? rightWallhit.normal : leftWallhit.normal;
         Vector3 wallForward = Vector3.Cross(wallNormal, transform.up);
 
@@ -115,7 +115,7 @@ public class WallRunning : MonoBehaviour
         rb.AddForce(-wallNormal * 100, ForceMode.Force);
 
         // --- 수정된 부분: 중력 상쇄(힘) 대신 Y축 속도를 0으로 강제 고정 ---
-        if (!useGravity) // Inspector에서 useGravity를 끄거나, 아래 로직으로 강제 고정
+        if (!pm.isGraviting) // Inspector에서 useGravity를 끄거나, 아래 로직으로 강제 고정
         {
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
         }

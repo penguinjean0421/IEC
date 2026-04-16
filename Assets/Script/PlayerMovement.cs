@@ -19,7 +19,9 @@ public class PlayerMovement : MonoBehaviour
 
     private float speedChangeFactor;
 
-
+    private Vector3 currentGravity = Vector3.down;
+    private float gravityForce = 9.8f * 2;
+    public bool isGraviting = true;
 
     private float desiredMoveSpeed;
     private float lastDesiredMoveSpeed;
@@ -130,6 +132,8 @@ public class PlayerMovement : MonoBehaviour
     private void FixedUpdate()
     {
         MovePlayer();
+
+        rb.AddForce(currentGravity * gravityForce, ForceMode.Acceleration);
     }
 
     private void MyInput()
@@ -302,7 +306,7 @@ public class PlayerMovement : MonoBehaviour
             rb.AddForce(moveDirection.normalized * moveSpeed * 10f * airMultiplier, ForceMode.Force);
 
         // turn gravity off while on slope
-        rb.useGravity = !OnSlope() && !dashing;
+        isGraviting = !OnSlope() && !dashing;
     }
 
 
@@ -419,6 +423,16 @@ public class PlayerMovement : MonoBehaviour
 
             GetComponent<Grappling>().StopGrapple();
         }
+
+        if (collision.gameObject.CompareTag("GravityWall"))
+        {
+            Vector3 wallNormal = collision.contacts[0].normal;
+            currentGravity = -wallNormal;
+        }
+
+
+
+
     }
 
 

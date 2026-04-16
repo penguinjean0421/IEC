@@ -68,7 +68,7 @@ public class Dashing : MonoBehaviour
         Vector3 forceToApply = direction * dashForce;
 
         if (disableGravity)
-            rb.useGravity = false;
+            pm.isGraviting = false;
 
         delayedForceToApply = forceToApply;
         Invoke(nameof(DelayedDashForce), 0.025f);
@@ -92,7 +92,7 @@ public class Dashing : MonoBehaviour
         cam.DoFov(80f);
 
         if (disableGravity)
-            rb.useGravity = true;
+            pm.isGraviting = true;
     }
 
     private Vector3 GetDirection(Transform forwardT)

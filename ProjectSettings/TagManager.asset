@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - CheckPoint
+  - GravityWall
   layers:
   - Default
   - TransparentFX
