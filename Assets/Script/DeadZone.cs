@@ -7,7 +7,7 @@ public class DeadZone : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             // 체크포인트에서 부활
-            other.GetComponent<CheckPoint>().ReSpawnPlayer(other.gameObject);
+            other.GetComponent<PlayerRespawn>().ReSpawn();
         }
     }
 }

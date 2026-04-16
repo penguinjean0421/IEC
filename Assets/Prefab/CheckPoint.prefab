@@ -12,10 +12,10 @@ GameObject:
   - component: {fileID: 5738278421269024537}
   - component: {fileID: 8067093431643981763}
   - component: {fileID: 5140346139196726560}
-  - component: {fileID: 9147242151655272583}
+  - component: {fileID: 8076917902515785626}
   m_Layer: 0
   m_Name: CheckPoint
-  m_TagString: Untagged
+  m_TagString: CheckPoint
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -113,7 +113,7 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &9147242151655272583
+--- !u!114 &8076917902515785626
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -122,7 +122,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 803524587332252524}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f7ac49ee1de01f84c98559c53be9c1be, type: 3}
+  m_Script: {fileID: 11500000, guid: bc61188cbfc583c499c4ba0a6c1ec04d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CheckPoint
   defaultColor: {r: 1, g: 1, b: 1, a: 1}
+  activeColor: {r: 0, g: 1, b: 0, a: 1}
