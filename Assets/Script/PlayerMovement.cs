@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
+
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
@@ -14,12 +15,11 @@ public class PlayerMovement : MonoBehaviour
 
     public float dashSpeed;
 
-
     public float dashSpeedChangeFactor;
 
     private float speedChangeFactor;
 
-    private Vector3 currentGravity = Vector3.down;
+    public Vector3 currentGravity = Vector3.down;
     private float gravityForce = 9.8f * 2;
     public bool isGraviting = true;
 
@@ -102,6 +102,14 @@ public class PlayerMovement : MonoBehaviour
 
     public bool grappling;
 
+    public bool isTransitioning = false;
+    public float lastGravityChangeTime = -1f;
+
+    private Quaternion fixedWallRotation;
+
+    private Coroutine speedCoroutine;
+    private Coroutine rotationCoroutine;
+
     private MovementState lastState;
     private bool keepMomentum;
 
@@ -109,13 +117,18 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
-        readyToJump = true;
+        
+        // 🌟 마법의 한 줄: 유니티의 기본 지구 중력을 꺼버립니다!
+        // 이제 오직 우리가 만든 'currentGravity'만이 플레이어를 당깁니다.
+        rb.useGravity = false; 
 
+        readyToJump = true;
         startYScale = transform.localScale.y;
     }
 
     private void Update()
     {
+        
         //ground check
         grounded = Physics.Raycast(transform.position, currentGravity.normalized, playerHeight * 0.5f + 0.2f, whatIsGround);
         Debug.DrawRay(transform.position, currentGravity.normalized * (playerHeight * 0.5f + 0.2f), Color.red);
@@ -249,12 +262,14 @@ public class PlayerMovement : MonoBehaviour
         {
             if (keepMomentum)
             {
-                StopAllCoroutines();
-                StartCoroutine(SmoothlyLerpMoveSpeed());
+                // 무식한 StopAllCoroutines(); 삭제!!!
+                if (speedCoroutine != null) StopCoroutine(speedCoroutine);
+                speedCoroutine = StartCoroutine(SmoothlyLerpMoveSpeed());
             }
             else
             {
-                StopAllCoroutines();
+                // 무식한 StopAllCoroutines(); 삭제!!!
+                if (speedCoroutine != null) StopCoroutine(speedCoroutine);
                 moveSpeed = desiredMoveSpeed;
             }
         }
@@ -288,8 +303,22 @@ public class PlayerMovement : MonoBehaviour
     {
         if (state == MovementState.dashing || state == MovementState.grappling || state == MovementState.swinging) return;
 
-        // calculate movement direction
-        moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
+        // ⚠️ 기존 코드 삭제 (orientation만 믿고 가는 방식 폐기)
+        // moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
+
+        // --- 🌟 새로운 완벽한 가변 중력 이동 로직 ---
+        // 1. 내 카메라(눈)가 실제로 바라보고 있는 진짜 앞쪽과 오른쪽 벡터를 가져옵니다.
+        Vector3 camForward = cam.camHolder.forward;
+        Vector3 camRight = cam.camHolder.right;
+
+        // 2. 그 시야 방향을, 현재 서 있는 벽면(currentGravity)에 납작하게 투영(ProjectOnPlane)시킵니다.
+        // 이렇게 하면 내가 하늘을 보든 땅을 보든, 벽을 타고 매끄럽게 전진하는 방향만 순수하게 뽑혀 나옵니다.
+        Vector3 forwardOnWall = Vector3.ProjectOnPlane(camForward, currentGravity).normalized;
+        Vector3 rightOnWall = Vector3.ProjectOnPlane(camRight, currentGravity).normalized;
+
+        // 3. 투영된 완벽한 방향을 기준으로 W,A,S,D 입력을 곱해 최종 이동 방향을 정합니다.
+        moveDirection = (forwardOnWall * verticalInput) + (rightOnWall * horizontalInput);
+        // ------------------------------------------
 
         // on slope
         if (OnSlope() && !exitingSlope)
@@ -297,7 +326,7 @@ public class PlayerMovement : MonoBehaviour
             rb.AddForce(GetSlopeMoveDirection(moveDirection) * moveSpeed * 20f, ForceMode.Force);
 
             if (rb.linearVelocity.y > 0)
-                rb.AddForce(Vector3.down * 80f, ForceMode.Force);
+                rb.AddForce(currentGravity.normalized * -80f, ForceMode.Force); // (차후 이 down도 currentGravity로 변경 필요)
         }
 
         // on ground
@@ -353,9 +382,12 @@ public class PlayerMovement : MonoBehaviour
     {
         exitingSlope = true;
 
-        //reset y vel
-        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        // 수정: 강제로 y를 0으로 만드는 것(월드 기준)을 삭제하고, 
+        // 현재 중력 평면에 투영한 수평 속도만 남겨서 '현재 바닥 기준'의 점프 전 속도를 만듭니다.
+        Vector3 flatVel = Vector3.ProjectOnPlane(rb.linearVelocity, currentGravity);
+        rb.linearVelocity = flatVel;
 
+        // 수정 완료: 현재의 '위(transform.up)'를 기준으로 점프력 추가
         rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
 
     }
@@ -396,7 +428,8 @@ public class PlayerMovement : MonoBehaviour
 
     public bool OnSlope()
     {
-        if (Physics.Raycast(transform.position, Vector3.down, out slopeHit, playerHeight * 0.5f + 0.3f))
+        // Vector3.down 대신 현재 중력 방향(currentGravity.normalized)을 향해 레이저를 쏩니다.
+        if (Physics.Raycast(transform.position, currentGravity.normalized, out slopeHit, playerHeight * 0.5f + 0.3f))
         {
             float angle = Vector3.Angle(-currentGravity.normalized, slopeHit.normal);
             return angle < maxSlopeAngel && angle != 0;
@@ -430,69 +463,97 @@ public class PlayerMovement : MonoBehaviour
         {
             enableMovementOnNextTouch = false;
             ResetRestrictions();
-
             GetComponent<Grappling>().StopGrapple();
         }
 
         if (collision.gameObject.CompareTag("GravityWall"))
         {
+            // 🌟 핵심 방어막: 중력이 변한 지 0.5초가 안 지났으면 다리가 바닥을 긁어도 무시합니다!
+            if (Time.time - lastGravityChangeTime < 0.5f) return;
+
             Vector3 wallNormal = collision.contacts[0].normal;
-            currentGravity = -wallNormal;
+            Vector3 contactPoint = collision.contacts[0].point;
 
-            StartCoroutine(RotatePlayerToNewGravity(wallNormal));
+            if (currentGravity != -wallNormal)
+            {
+                currentGravity = -wallNormal;
+                lastGravityChangeTime = Time.time; // 중력이 변한 시간 저장
+                
+                rb.linearVelocity = Vector3.zero; // 날아오던 관성 완전히 정지
 
-            StopCoroutine(nameof(RotatePlayerToSurface)); 
-            StartCoroutine(RotatePlayerToSurface(wallNormal));
+                if (rotationCoroutine != null) StopCoroutine(rotationCoroutine);
+                rotationCoroutine = StartCoroutine(RotatePlayerToSurface(wallNormal, contactPoint));
+            }
         }
-
     }
 
 
-    IEnumerator RotatePlayerToNewGravity(Vector3 newUp)
+    private IEnumerator RotatePlayerToSurface(Vector3 targetUp, Vector3 contactPoint)
     {
-        // 플레이어의 현재 회전값
+        isTransitioning = true;
+        rb.isKinematic = true; 
+
+        Behaviour cineBrain = cam.GetComponent("CinemachineBrain") as Behaviour;
+        if (cineBrain != null) cineBrain.enabled = false;
+
         Quaternion startRotation = transform.rotation;
+        Vector3 startPosition = transform.position;
 
-        // 현재 위쪽(transform.up)을 새로운 위쪽(newUp = 벽의 법선 벡터)으로 맞추는 회전값 계산
-        // 기존의 시야 방향(Forward)을 최대한 유지하기 위해 현재 회전값을 곱해줌
-        Quaternion targetRotation = Quaternion.FromToRotation(transform.up, newUp) * transform.rotation;
+        float currentDist = Vector3.Dot(transform.position - contactPoint, targetUp);
+        float desiredDist = playerHeight * 0.5f + 0.1f; 
+        Vector3 targetPosition = transform.position + targetUp * (desiredDist - currentDist);
 
+        Vector3 currentForward = cam.camHolder.forward;
+        Vector3 newForward = Vector3.ProjectOnPlane(currentForward, targetUp).normalized;
+        if (newForward.sqrMagnitude < 0.01f) 
+        {
+            newForward = Vector3.ProjectOnPlane(transform.up, targetUp).normalized;
+        }
+
+        // 🌟 핵심 마법: 매 프레임 계산하지 않도록, 가장 완벽한 목표 회전값을 계산해서 '영구 박제' 합니다.
+        fixedWallRotation = Quaternion.LookRotation(newForward, targetUp);
+
+        float startX = cam.xRotation;
+        float startY = cam.yRotation;
         float time = 0f;
-        float duration = 0.5f; // 시점이 돌아가는 데 걸리는 시간 (멀미 방지용 보간)
+        float duration = 0.35f;
 
         while (time < 1f)
         {
             time += Time.deltaTime / duration;
-            // 구면 선형 보간(Slerp)으로 부드러운 회전 적용
-            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, time);
+            
+            // 🌟 박제해둔 fixedWallRotation으로 부드럽게 Slerp 합니다.
+            transform.rotation = Quaternion.Slerp(startRotation, fixedWallRotation, time);
+            transform.position = Vector3.Lerp(startPosition, targetPosition, time); 
+
+            cam.xRotation = Mathf.Lerp(startX, 0f, time);
+            cam.yRotation = Mathf.Lerp(startY, 0f, time);
             yield return null;
         }
 
-        transform.rotation = targetRotation; // 오차 보정을 위해 최종값 강제 삽입
+        // 🌟 종료 시에도 박제된 값으로 딱 떨어지게 맞춥니다. (오차 방지)
+        transform.rotation = fixedWallRotation;
+        transform.position = targetPosition; 
+        cam.xRotation = 0f;
+        cam.yRotation = 0f;
+
+        if (cineBrain != null) cineBrain.enabled = true; 
+
+        rb.isKinematic = false; 
+        isTransitioning = false;
     }
 
-    private IEnumerator RotatePlayerToSurface(Vector3 targetUp)
+    // 🌟 수정된 LateUpdate: 카메라 방향을 보지 않고, 박제된 값으로 몸통만 고정합니다!
+    private void LateUpdate()
     {
-        // 1. 현재 회전 상태 저장
-        Quaternion startRotation = transform.rotation;
-
-        // 2. 목표 회전 상태 계산: 현재의 '위쪽(transform.up)'을 '목표 위쪽(targetUp)'으로 맞춤
-        // * transform.rotation을 곱해주는 이유는 현재 바라보고 있는 시야(앞쪽)를 최대한 유지하기 위함입니다.
-        Quaternion targetRotation = Quaternion.FromToRotation(transform.up, targetUp) * transform.rotation;
-
-        float time = 0f;
-        float duration = 0.4f; // 회전하는 데 걸리는 시간 (멀미가 나면 늘리고, 답답하면 줄이세요)
-
-        // 3. duration 시간 동안 부드럽게(Slerp) 회전
-        while (time < 1f)
+        // 중력이 바뀌어 벽에 붙은 상태이고, 회전이 끝났다면
+        if (!isTransitioning && currentGravity != Vector3.down)
         {
-            time += Time.deltaTime / duration;
-            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, time);
-            yield return null;
+            // 다른 훼방꾼 스크립트들이 몸통을 일으켜 세우려고 발악해도, 
+            // 가장 마지막 순간에 무조건 캡슐을 90도로 예쁘게 고정시켜 버립니다!
+            transform.rotation = fixedWallRotation;
         }
-
-        // 4. 오차 보정을 위해 마지막에 정확한 값으로 강제 고정
-        transform.rotation = targetRotation;
     }
+
 
 }
