@@ -388,7 +388,7 @@ public class PlayerMovement : MonoBehaviour
         rb.linearVelocity = flatVel;
 
         // 수정 완료: 현재의 '위(transform.up)'를 기준으로 점프력 추가
-        rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+        rb.AddForce(-currentGravity * jumpForce, ForceMode.Impulse);
 
     }
 
