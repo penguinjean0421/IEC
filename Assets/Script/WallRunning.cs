@@ -46,12 +46,18 @@ public class WallRunning : MonoBehaviour
 
     private void Update()
     {
+        // 🌟 1. 핵심 호환성: 중력이 변환(회전) 중일 때는 월런이 개입하지 않고 얌전히 기다립니다!
+        if (pm != null && pm.isTransitioning) return; 
+
         CheckForWall();
         StateMachine();
     }
 
     private void FixedUpdate()
     {
+        // 🌟 중력 변환 중일 때는 월런 물리 연산 대기
+        if (pm != null && pm.isTransitioning) return; 
+
         if (pm.wallrunning)
             WallRunningMovement();
     }
@@ -62,14 +68,14 @@ public class WallRunning : MonoBehaviour
         wallLeft = Physics.Raycast(transform.position, -orientation.right, out leftWallhit, wallCheckDistance, whatIsWall);
     }
 
-    private bool AboveGround() => !Physics.Raycast(transform.position, Vector3.down, minJumpHeight, whatIsGround);
+    // 🌟 2. 하드코딩된 Vector3.down 대신, 현재 플레이어의 진짜 중력 방향을 기준으로 바닥을 체크합니다.
+    private bool AboveGround() => !Physics.Raycast(transform.position, pm.currentGravity.normalized, minJumpHeight, whatIsGround);
 
     private void StateMachine()
     {
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
-        // State 1 - Wallrunning (조건: 벽 접촉 + 전진 입력 + 공중 + 탈출 중 아님)
         if((wallLeft || wallRight) && verticalInput > 0 && AboveGround() && !exitingWall)
         {
             if (!pm.wallrunning) StartWallRun();
@@ -77,7 +83,6 @@ public class WallRunning : MonoBehaviour
             if (Input.GetKeyDown(jumpKey)) WallJump();
             if (Input.GetKeyDown(dropKey)) DropWall();
         }
-        // State 2 - Exiting
         else if (exitingWall)
         {
             if (pm.wallrunning) StopWallRun();
@@ -85,17 +90,23 @@ public class WallRunning : MonoBehaviour
             if (exitWallTimer > 0) exitWallTimer -= Time.deltaTime;
             if (exitWallTimer <= 0) exitingWall = false;
         }
-        // State 3 - None (벽에서 떨어지거나 전진 입력을 뗐을 때)
         else
         {
             if (pm.wallrunning) StopWallRun();
         }
     }
 
+    // 🌟 3. 무조건 Y축을 0으로 만드는 코드 대신, 현재 '중력 방향'의 속도만 깔끔하게 제거하는 수학 공식을 씁니다.
+    private void RemoveGravityVelocity()
+    {
+        Vector3 gravityDir = pm.currentGravity.normalized;
+        rb.linearVelocity = rb.linearVelocity - Vector3.Project(rb.linearVelocity, gravityDir);
+    }
+
     private void StartWallRun()
     {
         pm.wallrunning = true;
-        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        RemoveGravityVelocity(); // 가변 중력에 맞춘 속도 초기화
 
         cam.DoFov(90f);
         if (wallLeft) cam.DoTilt(-5f);
@@ -114,26 +125,17 @@ public class WallRunning : MonoBehaviour
         rb.AddForce(wallForward * wallRunForce, ForceMode.Force);
         rb.AddForce(-wallNormal * 100, ForceMode.Force);
 
-        // --- 수정된 부분: 중력 상쇄(힘) 대신 Y축 속도를 0으로 강제 고정 ---
-        if (!pm.isGraviting) // Inspector에서 useGravity를 끄거나, 아래 로직으로 강제 고정
+        if (!pm.isGraviting) 
         {
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+            RemoveGravityVelocity(); // 가변 중력에 맞춘 떨어짐 방지
         }
         else
         {
-            // useGravity가 체크되어 있더라도 벽타기 중에는 떨어지지 않게 묶음
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z); 
-            // (만약 벽타기 중 약간씩 떨어지는 연출이 필요하다면 0f 대신 -1f 같은 작은 음수 값 지정 가능)
+            RemoveGravityVelocity(); 
         }
-        // -------------------------------------------------------------
 
-// --- 추가된 부분: 곡면 벽 대응 동적 90도 정렬 ---
-        // 캐릭터의 이동축/레이캐스트축(orientation)을 벽의 진행방향(wallForward)에 맞춤.
-        // 부드럽게 곡선을 따라가도록 Slerp(구면 선형 보간) 적용. 수치를 높일수록 벽에 찰싹 붙어 회전.
-        Quaternion targetRotation = Quaternion.LookRotation(wallForward);
+        Quaternion targetRotation = Quaternion.LookRotation(wallForward, -pm.currentGravity.normalized);
         orientation.rotation = Quaternion.Slerp(orientation.rotation, targetRotation, Time.deltaTime * 15f);
-        // --------------------------------------------------
-
     }
 
     private void StopWallRun()
@@ -149,7 +151,7 @@ public class WallRunning : MonoBehaviour
         Vector3 wallNormal = wallRight ? rightWallhit.normal : leftWallhit.normal;
         Vector3 forceToApply = transform.up * wallJumpUpForce + wallNormal * wallJumpSideForce;
 
-        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        RemoveGravityVelocity(); // 가변 중력에 맞춘 월점프
         rb.AddForce(forceToApply, ForceMode.Impulse);
     }
 
