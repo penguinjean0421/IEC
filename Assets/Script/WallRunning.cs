@@ -64,8 +64,21 @@ public class WallRunning : MonoBehaviour
 
     private void CheckForWall()
     {
-        wallRight = Physics.Raycast(transform.position, orientation.right, out rightWallhit, wallCheckDistance, whatIsWall);
-        wallLeft = Physics.Raycast(transform.position, -orientation.right, out leftWallhit, wallCheckDistance, whatIsWall);
+        // 1. 현재 바닥(중력)의 위쪽 방향
+        Vector3 gravityUp = pm.currentGravity == Vector3.down ? Vector3.up : -pm.currentGravity.normalized;
+        
+        // 2. 카메라가 바라보는 앞(forward)을 현재 바닥에 평평하게 눕힙니다 (위아래 쳐다보는 각도 무시)
+        Vector3 flatForward = Vector3.ProjectOnPlane(Camera.main.transform.forward, gravityUp).normalized;
+        
+        // 🌟 [최종 해결] 위쪽(Up)과 앞쪽(Forward)을 교차(Cross)시키면 수학적으로 '완벽하게 평행한 오른쪽'이 무조건 나옵니다!
+        Vector3 trueRight = Vector3.Cross(gravityUp, flatForward).normalized;
+
+        wallRight = Physics.Raycast(transform.position, trueRight, out rightWallhit, wallCheckDistance, whatIsWall);
+        wallLeft = Physics.Raycast(transform.position, -trueRight, out leftWallhit, wallCheckDistance, whatIsWall);
+
+        // 시각화: 이제 천장이든 벽이든, 레이캐스트가 바닥과 완벽하게 평행한 십자가(─ ─) 모양으로 뻗어나갑니다.
+        Debug.DrawRay(transform.position, trueRight * wallCheckDistance, wallRight ? Color.green : Color.red);
+        Debug.DrawRay(transform.position, -trueRight * wallCheckDistance, wallLeft ? Color.green : Color.red);
     }
 
     // 🌟 2. 하드코딩된 Vector3.down 대신, 현재 플레이어의 진짜 중력 방향을 기준으로 바닥을 체크합니다.
