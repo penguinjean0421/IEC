@@ -146,7 +146,8 @@ public class PlayerMovement : MonoBehaviour
     {
         MovePlayer();
 
-        if (!dashing || !wallrunning || !grappling || !freeze)
+        // || → && 수정: 네 가지 모두 false일 때만 중력 적용 (wallrunning 중 중력 차단)
+        if (!dashing && !wallrunning && !grappling && !freeze)
         {
             rb.AddForce(currentGravity * gravityForce, ForceMode.Acceleration);
         }
@@ -445,16 +446,29 @@ public class PlayerMovement : MonoBehaviour
     
     private Vector3 CalculateJumpVelocity(Vector3 startPoint, Vector3 endPoint, float trajectoryHeight)
     {
-        float gravity = Physics.gravity.y;
-        float displacementY = endPoint.y - startPoint.y;
-        Vector3 displacementXZ = new Vector3(endPoint.x - startPoint.x, 0, endPoint.z - startPoint.z);
+        // ✅ Physics.gravity.y(-9.81) 대신 실제 적용 중인 커스텀 중력 사용
+        Vector3 gravityUp = -currentGravity.normalized;   // 현재 기준 "위" 방향
+        float g = gravityForce;                            // 실제 중력 크기 (9.8 * 2 = 19.6)
 
-        float time = Mathf.Sqrt(-2 * trajectoryHeight / gravity) + Mathf.Sqrt(2 * (displacementY - trajectoryHeight) / gravity);
-        Vector3 velocityY = Vector3.up * Mathf.Sqrt(-2 * gravity * trajectoryHeight);
-        Vector3 velocityXZ = displacementXZ / time;
+        // ✅ 월드 Y 대신 현재 중력 기준으로 높이 차이 계산
+        float displacementUp = Vector3.Dot(endPoint - startPoint, gravityUp);
 
-        return velocityXZ + velocityY;
-        }
+        // ✅ 중력 방향 성분 제거한 순수 수평 변위 (중력이 어느 축이든 올바르게 처리)
+        Vector3 displacementFlat = Vector3.ProjectOnPlane(endPoint - startPoint, gravityUp);
+
+        // ✅ NaN 방지: 목표가 최고점보다 높으면 trajectoryHeight를 자동으로 늘림
+        float safeHeight = Mathf.Max(trajectoryHeight, displacementUp + 0.1f);
+
+        float t1 = Mathf.Sqrt(2f * safeHeight / g);                     // 출발 → 최고점
+        float t2 = Mathf.Sqrt(2f * (safeHeight - displacementUp) / g);  // 최고점 → 목표
+        float totalTime = t1 + t2;
+
+        // ✅ Vector3.up 대신 현재 중력 기준 "위" 방향으로 초기 수직 속도 적용
+        Vector3 velocityUp = gravityUp * Mathf.Sqrt(2f * g * safeHeight);
+        Vector3 velocityFlat = totalTime > 0.001f ? displacementFlat / totalTime : Vector3.zero;
+
+        return velocityFlat + velocityUp;
+    }
 
 
     private void OnCollisionEnter(Collision collision)

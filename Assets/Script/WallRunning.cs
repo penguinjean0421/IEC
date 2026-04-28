@@ -67,8 +67,9 @@ public class WallRunning : MonoBehaviour
         // 1. 현재 바닥(중력)의 위쪽 방향
         Vector3 gravityUp = pm.currentGravity == Vector3.down ? Vector3.up : -pm.currentGravity.normalized;
         
-        // 2. 카메라가 바라보는 앞(forward)을 현재 바닥에 평평하게 눕힙니다 (위아래 쳐다보는 각도 무시)
-        Vector3 flatForward = Vector3.ProjectOnPlane(Camera.main.transform.forward, gravityUp).normalized;
+        // 2. 플레이어 몸체(orientation)의 앞쪽을 현재 바닥에 평평하게 눕힙니다
+        // ✅ Camera.main 대신 orientation 사용 → 카메라를 돌려도 벽 감지 방향이 바뀌지 않음
+        Vector3 flatForward = Vector3.ProjectOnPlane(orientation.forward, gravityUp).normalized;
         
         // 🌟 [최종 해결] 위쪽(Up)과 앞쪽(Forward)을 교차(Cross)시키면 수학적으로 '완벽하게 평행한 오른쪽'이 무조건 나옵니다!
         Vector3 trueRight = Vector3.Cross(gravityUp, flatForward).normalized;
