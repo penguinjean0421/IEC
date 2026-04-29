@@ -42,9 +42,6 @@ public class Grappling : MonoBehaviour
 
     private void Update()
     {
-        // ✅ 핵심: 입력 감지만 여기서 하고, 실제 레이캐스트는 코루틴으로 넘김
-        // Cinemachine이 LateUpdate에서 카메라를 갱신하므로
-        // Update 타이밍에 Camera.main을 읽으면 한 프레임 늦은 방향이 나옴
         if (Input.GetKeyDown(grappleKey) && grapplingCdTimer <= 0)
             StartCoroutine(TryGrapple());
 
@@ -52,8 +49,6 @@ public class Grappling : MonoBehaviour
             grapplingCdTimer -= Time.deltaTime;
     }
 
-    // ✅ WaitForEndOfFrame: 모든 LateUpdate + Cinemachine 갱신이 끝난 뒤 실행
-    // 이 시점의 Camera.main은 실제 렌더링된 화면과 100% 일치함
     private IEnumerator TryGrapple()
     {
         yield return new WaitForEndOfFrame();
@@ -70,7 +65,6 @@ public class Grappling : MonoBehaviour
     {
         if (grapplingCdTimer > 0) return;
 
-        // Cinemachine 갱신 완료 후 호출되므로 Camera.main이 정확함
         Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
 
         RaycastHit hit;
@@ -104,13 +98,9 @@ public class Grappling : MonoBehaviour
         pm.freeze = false;
         pm.grappling = true;
 
-        // ✅ 현재 중력 기준 '위' 방향 계산 (중력 반전 시에도 올바른 방향 사용)
         Vector3 gravityUp = -pm.currentGravity.normalized;
-
-        // ✅ 월드 Y 대신 현재 중력 기준으로 '아래 1f' 지점 계산
         Vector3 lowestPoint = transform.position - gravityUp * 1f;
 
-        // ✅ 월드 .y 차이 대신, 중력 up 방향으로의 실제 높이 차이를 내적(Dot)으로 계산
         float grapplePointRelativeYPos = Vector3.Dot(grapplePoint - lowestPoint, gravityUp);
         float highestPointOnArc = grapplePointRelativeYPos + overshootYAxis;
 
