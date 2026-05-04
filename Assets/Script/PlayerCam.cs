@@ -13,10 +13,13 @@ public class PlayerCam : MonoBehaviour
 
     public Transform player;
 
-    public  PlayerMovement pm;
+    public PlayerMovement pm;
 
     public float xRotation;
     public float yRotation;
+
+    // ✅ 중력 기준으로 계산한 월드 시선 방향 (Grappling 등 외부에서 참조)
+    public Vector3 WorldAimDirection { get; private set; }
 
     private void Start()
     {
@@ -32,7 +35,6 @@ public class PlayerCam : MonoBehaviour
         float mouseX = Input.GetAxisRaw("Mouse X") * Time.deltaTime * sensX;
         float mouseY = Input.GetAxisRaw("Mouse Y") * Time.deltaTime * sensY;
 
-        // 지웠던 yRotation을 다시 살려서 마우스 입력값을 누적시킵니다.
         yRotation += mouseX;
         xRotation -= mouseY;
         xRotation = Mathf.Clamp(xRotation, -90f, 90f);
@@ -40,12 +42,37 @@ public class PlayerCam : MonoBehaviour
         // 1. 카메라는 위아래(X)와 좌우(Y) 모두 똑같이 적용
         camHolder.localRotation = Quaternion.Euler(xRotation, yRotation, 0);
 
-        // 2. 방향 기준과 플레이어 그래픽도 좌우(Y)를 "카메라와 완전히 똑같은 yRotation 값"으로 강제 고정!
-        // 이렇게 하면 카메라와 이동 축이 절대 어긋나지 않습니다.
+        // 2. 방향 기준과 플레이어 그래픽도 좌우(Y)를 강제 고정
         if (pm != null && !pm.wallrunning)
         {
             orientation.localRotation = Quaternion.Euler(0, yRotation, 0);
             player.localRotation = Quaternion.Euler(0, yRotation, 0);
+        }
+
+        // ✅ 현재 중력 기준 월드 시선 방향 직접 계산
+        if (pm != null)
+        {
+            Vector3 up = -pm.currentGravity.normalized;
+
+            // up 벡터와 거의 평행하지 않은 기준 벡터 선택 (안전한 Cross 계산을 위해)
+            Vector3 reference = (Mathf.Abs(Vector3.Dot(up, Vector3.forward)) < 0.9f)
+                ? Vector3.forward
+                : Vector3.right;
+
+            // ✅ 올바른 Cross 순서: Cross(up, reference) → right
+            Vector3 right = Vector3.Cross(up, reference).normalized;
+
+            // ✅ 올바른 Cross 순서: Cross(right, up) → forward  (이전 코드에서 둘 다 반대였음)
+            Vector3 forward = Vector3.Cross(right, up).normalized;
+
+            // yRotation: up축 기준 수평 회전
+            Quaternion yRot = Quaternion.AngleAxis(yRotation, up);
+            forward = yRot * forward;
+            right = yRot * right;
+
+            // xRotation: right축 기준 수직 회전
+            Quaternion xRot = Quaternion.AngleAxis(xRotation, right);
+            WorldAimDirection = xRot * forward;
         }
     }
 

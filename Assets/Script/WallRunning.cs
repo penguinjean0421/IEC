@@ -46,7 +46,6 @@ public class WallRunning : MonoBehaviour
 
     private void Update()
     {
-        // 🌟 1. 핵심 호환성: 중력이 변환(회전) 중일 때는 월런이 개입하지 않고 얌전히 기다립니다!
         if (pm != null && pm.isTransitioning) return; 
 
         CheckForWall();
@@ -55,7 +54,6 @@ public class WallRunning : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // 🌟 중력 변환 중일 때는 월런 물리 연산 대기
         if (pm != null && pm.isTransitioning) return; 
 
         if (pm.wallrunning)
@@ -64,11 +62,54 @@ public class WallRunning : MonoBehaviour
 
     private void CheckForWall()
     {
-        wallRight = Physics.Raycast(transform.position, orientation.right, out rightWallhit, wallCheckDistance, whatIsWall);
-        wallLeft = Physics.Raycast(transform.position, -orientation.right, out leftWallhit, wallCheckDistance, whatIsWall);
+        wallRight = false;
+        wallLeft = false;
+
+        // 🌟 현재 중력(바닥) 기준으로 흔들리지 않는 절대 축 생성
+        Vector3 gravityUp = pm.currentGravity == Vector3.down ? Vector3.up : -pm.currentGravity.normalized;
+        Vector3 flatForward = Vector3.ProjectOnPlane(orientation.forward, gravityUp).normalized;
+        Vector3 trueRight = Vector3.Cross(gravityUp, flatForward).normalized;
+
+        // 🌟 [핵심 해결] SphereCast의 '모서리 곡선' 버그를 버리고,
+        // 얇은 Raycast 3가닥을 부채꼴(옆, 앞대각선, 뒤대각선)로 넓게 쏴서 180도 판정을 만듭니다!
+        Vector3[] rightDirs = { 
+            trueRight, 
+            (trueRight + flatForward).normalized, // 앞쪽 45도
+            (trueRight - flatForward).normalized  // 뒤쪽 45도
+        };
+
+        foreach (Vector3 dir in rightDirs)
+        {
+            if (Physics.Raycast(transform.position, dir, out RaycastHit hit, wallCheckDistance, whatIsWall))
+            {
+                wallRight = true;
+                rightWallhit = hit;
+                Debug.DrawRay(transform.position, dir * wallCheckDistance, Color.green);
+                break; // 한 가닥이라도 닿으면 즉시 월런 인정!
+            }
+            else Debug.DrawRay(transform.position, dir * wallCheckDistance, Color.red);
+        }
+
+        // 🌟 왼쪽 벽 감지도 동일하게 부채꼴 3가닥 발사
+        Vector3[] leftDirs = { 
+            -trueRight, 
+            (-trueRight + flatForward).normalized, 
+            (-trueRight - flatForward).normalized 
+        };
+
+        foreach (Vector3 dir in leftDirs)
+        {
+            if (Physics.Raycast(transform.position, dir, out RaycastHit hit, wallCheckDistance, whatIsWall))
+            {
+                wallLeft = true;
+                leftWallhit = hit;
+                Debug.DrawRay(transform.position, dir * wallCheckDistance, Color.green);
+                break;
+            }
+            else Debug.DrawRay(transform.position, dir * wallCheckDistance, Color.red);
+        }
     }
 
-    // 🌟 2. 하드코딩된 Vector3.down 대신, 현재 플레이어의 진짜 중력 방향을 기준으로 바닥을 체크합니다.
     private bool AboveGround() => !Physics.Raycast(transform.position, pm.currentGravity.normalized, minJumpHeight, whatIsGround);
 
     private void StateMachine()
@@ -96,7 +137,6 @@ public class WallRunning : MonoBehaviour
         }
     }
 
-    // 🌟 3. 무조건 Y축을 0으로 만드는 코드 대신, 현재 '중력 방향'의 속도만 깔끔하게 제거하는 수학 공식을 씁니다.
     private void RemoveGravityVelocity()
     {
         Vector3 gravityDir = pm.currentGravity.normalized;
@@ -106,7 +146,7 @@ public class WallRunning : MonoBehaviour
     private void StartWallRun()
     {
         pm.wallrunning = true;
-        RemoveGravityVelocity(); // 가변 중력에 맞춘 속도 초기화
+        RemoveGravityVelocity();
 
         cam.DoFov(90f);
         if (wallLeft) cam.DoTilt(-5f);
@@ -117,7 +157,10 @@ public class WallRunning : MonoBehaviour
     {
         pm.isGraviting = useGravity;
         Vector3 wallNormal = wallRight ? rightWallhit.normal : leftWallhit.normal;
-        Vector3 wallForward = Vector3.Cross(wallNormal, transform.up);
+        
+        // 🌟 [수정 4] 흔들리는 transform.up 대신 절대축인 gravityUp을 사용하여 진행방향 솟구침 완벽 방지!
+        Vector3 gravityUp = pm.currentGravity == Vector3.down ? Vector3.up : -pm.currentGravity.normalized;
+        Vector3 wallForward = Vector3.Cross(wallNormal, gravityUp);
 
         if ((orientation.forward - wallForward).magnitude > (orientation.forward - -wallForward).magnitude)
             wallForward = -wallForward;
@@ -127,14 +170,15 @@ public class WallRunning : MonoBehaviour
 
         if (!pm.isGraviting) 
         {
-            RemoveGravityVelocity(); // 가변 중력에 맞춘 떨어짐 방지
+            RemoveGravityVelocity();
         }
         else
         {
             RemoveGravityVelocity(); 
         }
 
-        Quaternion targetRotation = Quaternion.LookRotation(wallForward, -pm.currentGravity.normalized);
+        // ✅ 월런 중 orientation을 벽 이동 방향으로 맞춰줍니다.
+        Quaternion targetRotation = Quaternion.LookRotation(wallForward, gravityUp);
         orientation.rotation = Quaternion.Slerp(orientation.rotation, targetRotation, Time.deltaTime * 15f);
     }
 
@@ -143,15 +187,24 @@ public class WallRunning : MonoBehaviour
         pm.wallrunning = false;
         cam.DoFov(80f);
         cam.DoTilt(0f);
-    }
 
+        if (pm.currentGravity == Vector3.down) 
+        {
+            float playerY = pm.transform.localEulerAngles.y;
+            float camY = cam.yRotation;
+            
+            float diff = Mathf.DeltaAngle(playerY, camY);
+            
+            cam.yRotation = playerY + (diff / 2f);
+        }
+    }
     private void WallJump()
     {
         ExitRoutine();
         Vector3 wallNormal = wallRight ? rightWallhit.normal : leftWallhit.normal;
         Vector3 forceToApply = transform.up * wallJumpUpForce + wallNormal * wallJumpSideForce;
 
-        RemoveGravityVelocity(); // 가변 중력에 맞춘 월점프
+        RemoveGravityVelocity();
         rb.AddForce(forceToApply, ForceMode.Impulse);
     }
 

@@ -146,7 +146,7 @@ public class PlayerMovement : MonoBehaviour
     {
         MovePlayer();
 
-        if (!dashing || !wallrunning || !grappling || !freeze)
+        if (!dashing && !wallrunning && !grappling && !freeze)
         {
             rb.AddForce(currentGravity * gravityForce, ForceMode.Acceleration);
         }
@@ -388,7 +388,7 @@ public class PlayerMovement : MonoBehaviour
         rb.linearVelocity = flatVel;
 
         // 수정 완료: 현재의 '위(transform.up)'를 기준으로 점프력 추가
-        rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+        rb.AddForce(-currentGravity * jumpForce, ForceMode.Impulse);
 
     }
 
@@ -445,16 +445,17 @@ public class PlayerMovement : MonoBehaviour
     
     private Vector3 CalculateJumpVelocity(Vector3 startPoint, Vector3 endPoint, float trajectoryHeight)
     {
-        float gravity = Physics.gravity.y;
-        float displacementY = endPoint.y - startPoint.y;
-        Vector3 displacementXZ = new Vector3(endPoint.x - startPoint.x, 0, endPoint.z - startPoint.z);
+        Vector3 gravityUp = -currentGravity.normalized;
+        float gravity = -gravityForce;                                                     // Physics.gravity.y 대체 (음수 유지)
+        float displacementY = Vector3.Dot(endPoint - startPoint, gravityUp);               // .y 대체
+        Vector3 displacementXZ = Vector3.ProjectOnPlane(endPoint - startPoint, gravityUp); // new Vector3(...,0,...) 대체
 
         float time = Mathf.Sqrt(-2 * trajectoryHeight / gravity) + Mathf.Sqrt(2 * (displacementY - trajectoryHeight) / gravity);
-        Vector3 velocityY = Vector3.up * Mathf.Sqrt(-2 * gravity * trajectoryHeight);
+        Vector3 velocityY = gravityUp * Mathf.Sqrt(-2 * gravity * trajectoryHeight);      // Vector3.up 대체
         Vector3 velocityXZ = displacementXZ / time;
 
         return velocityXZ + velocityY;
-        }
+    }
 
 
     private void OnCollisionEnter(Collision collision)
