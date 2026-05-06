@@ -146,7 +146,9 @@ public class PlayerMovement : MonoBehaviour
     {
         MovePlayer();
 
-        if (!dashing && !wallrunning && !grappling && !freeze)
+        // 🌟 핵심 버그 해결: 조건문에서 !grappling을 빼버렸습니다! 
+        // 이제 날아가는 동안 중력이 정상적으로 작동해서 곡선을 그려줍니다.
+        if (!dashing && !wallrunning && !freeze)
         {
             rb.AddForce(currentGravity * gravityForce, ForceMode.Acceleration);
         }
@@ -404,8 +406,9 @@ public class PlayerMovement : MonoBehaviour
     {
         activeGrapple = true;
 
+        // 🌟 수정 1: 0.1초 딜레이 삭제! 계산 즉시 발사하여 중력 손실을 없앱니다.
         velocityToSet = CalculateJumpVelocity(transform.position, targetPosition, trajectoryHeight);
-        Invoke(nameof(SetVelocity), 0.1f);
+        SetVelocity(); // Invoke 대신 다이렉트로 즉시 실행
 
         Invoke(nameof(ResetRestrictions), 3f);
     }
@@ -414,6 +417,12 @@ public class PlayerMovement : MonoBehaviour
     private void SetVelocity()
     {
         enableMovementOnNextTouch = true;
+        
+        // 🌟 수정 2: 날아가는 동안 유니티 기본 마찰력(Drag)과 중력이 
+        // 궤적을 갉아먹지 못하도록 강제로 꺼버립니다.
+        rb.useGravity = false;
+        rb.linearDamping = 0f; 
+
         rb.linearVelocity = velocityToSet;
 
         cam.DoFov(grappleFov);
@@ -446,12 +455,20 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 CalculateJumpVelocity(Vector3 startPoint, Vector3 endPoint, float trajectoryHeight)
     {
         Vector3 gravityUp = -currentGravity.normalized;
-        float gravity = -gravityForce;                                                     // Physics.gravity.y 대체 (음수 유지)
-        float displacementY = Vector3.Dot(endPoint - startPoint, gravityUp);               // .y 대체
-        Vector3 displacementXZ = Vector3.ProjectOnPlane(endPoint - startPoint, gravityUp); // new Vector3(...,0,...) 대체
+        float gravity = -gravityForce;                                                     
+        float displacementY = Vector3.Dot(endPoint - startPoint, gravityUp);               
+        Vector3 displacementXZ = Vector3.ProjectOnPlane(endPoint - startPoint, gravityUp); 
+
+        // 🌟 수정 3: 수학적 안전장치!
+        // 어떤 상황에서도 캐릭터가 타격점보다 무조건 '1.0'만큼은 더 높게 솟구치도록 강제 보정합니다.
+        // (가파른 벽을 쐈을 때 턱에 걸려 못 올라가는 현상 방지)
+        if (trajectoryHeight < displacementY + 1.0f) 
+        {
+            trajectoryHeight = displacementY + 1.0f; 
+        }
 
         float time = Mathf.Sqrt(-2 * trajectoryHeight / gravity) + Mathf.Sqrt(2 * (displacementY - trajectoryHeight) / gravity);
-        Vector3 velocityY = gravityUp * Mathf.Sqrt(-2 * gravity * trajectoryHeight);      // Vector3.up 대체
+        Vector3 velocityY = gravityUp * Mathf.Sqrt(-2 * gravity * trajectoryHeight);      
         Vector3 velocityXZ = displacementXZ / time;
 
         return velocityXZ + velocityY;
