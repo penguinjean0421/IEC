@@ -93,6 +93,7 @@ public class Grappling : MonoBehaviour
         lr.SetPosition(1, grapplePoint);
     }
 
+
     private void ExecuteGrapple()
     {
         pm.freeze = false;
@@ -106,11 +107,16 @@ public class Grappling : MonoBehaviour
 
         if (grapplePointRelativeYPos < 0) highestPointOnArc = overshootYAxis;
 
-        pm.JumpToPosition(grapplePoint, highestPointOnArc);
+        // 🌟 핵심 수정: 최종 도착지(grapplePoint) 자체에 Overshoot 높이(2)를 더해버립니다!
+        // 이제 12를 쏘면 14를 향해 날아가서 블럭 위로 예쁘게 안착합니다.
+        Vector3 finalDestination = grapplePoint + (gravityUp * overshootYAxis);
+
+        // 기존의 grapplePoint 대신 finalDestination으로 날아가게 변경합니다.
+        pm.JumpToPosition(finalDestination, highestPointOnArc);
 
         Invoke(nameof(StopGrapple), 1f);
     }
-
+   
     public void StopGrapple()
     {
         pm.freeze = false;
@@ -152,5 +158,23 @@ public class Grappling : MonoBehaviour
 
             lr.SetPosition(i, targetPos);
         }
-    }
+    } 
+    // private void ExecuteGrapple()
+    // {
+    //     pm.freeze = false;
+    //     pm.grappling = true;
+
+    //     Vector3 gravityUp = -pm.currentGravity.normalized;
+    //     Vector3 lowestPoint = transform.position - gravityUp * 1f;
+
+    //     float grapplePointRelativeYPos = Vector3.Dot(grapplePoint - lowestPoint, gravityUp);
+    //     float highestPointOnArc = grapplePointRelativeYPos + overshootYAxis;
+
+    //     if (grapplePointRelativeYPos < 0) highestPointOnArc = overshootYAxis;
+
+    //     pm.JumpToPosition(grapplePoint, highestPointOnArc);
+
+    //     Invoke(nameof(StopGrapple), 1f);
+    // }
+
 }
