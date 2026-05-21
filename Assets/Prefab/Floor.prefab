@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 9045857384773497446}
   - component: {fileID: 1874328830384360103}
   - component: {fileID: 5211185592203711809}
-  m_Layer: 0
+  m_Layer: 10
   m_Name: Floor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -28,7 +28,7 @@ Transform:
   m_GameObject: {fileID: 5666248685131462300}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 25.82, y: 8.7, z: -10.55}
+  m_LocalPosition: {x: 51.298294, y: 0.49999744, z: 0.63178927}
   m_LocalScale: {x: 10.64, y: 1, z: 11.58}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -67,7 +67,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: a884330156e8bf440a70a6b79e391f83, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
