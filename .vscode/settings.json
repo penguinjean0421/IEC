@@ -67,5 +67,6 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "IEC.slnx"
+    "dotnet.defaultSolution": "IEC.slnx",
+    "editor.formatOnSave": true
 }

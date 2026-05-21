@@ -36,6 +36,10 @@ public class PlayerMovement : MonoBehaviour
     public float airMultiplier;
     bool readyToJump;
 
+    [Header("Interaction")]
+    public Interaction interaction;
+
+
     [Header("Crouching")]
     public float crouchSpeed;
     public float crouchYScale;
@@ -45,7 +49,7 @@ public class PlayerMovement : MonoBehaviour
     // public KeyCode jumpKey = KeyCode.Jump;
     public KeyCode sprintKey = KeyCode.LeftShift;
     public KeyCode crouchKey = KeyCode.LeftControl;
-
+    public KeyCode interactionKey = KeyCode.E;
 
     [Header("Ground Check")]
     public float playerHeight;
@@ -60,7 +64,6 @@ public class PlayerMovement : MonoBehaviour
     [Header("Camera Effects")]
     public PlayerCam cam;
     public float grappleFov = 95f;
-
 
 
     [Header("Basic References")]
@@ -94,7 +97,7 @@ public class PlayerMovement : MonoBehaviour
     public bool sliding;
     public bool wallrunning;
 
-    public bool crouching;          
+    public bool crouching;
 
     public bool freeze;
 
@@ -117,8 +120,8 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
-        
-        rb.useGravity = false; 
+
+        rb.useGravity = false;
 
         readyToJump = true;
         startYScale = transform.localScale.y;
@@ -127,8 +130,8 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         // 🌟 수정됨: 중력 변환 중에는 모든 움직임 및 입력 억제!
-        if (isTransitioning) return; 
-        
+        if (isTransitioning) return;
+
         //ground check
         grounded = Physics.Raycast(transform.position, currentGravity.normalized, playerHeight * 0.5f + 0.2f, whatIsGround);
         Debug.DrawRay(transform.position, currentGravity.normalized * (playerHeight * 0.5f + 0.2f), Color.red);
@@ -177,6 +180,12 @@ public class PlayerMovement : MonoBehaviour
             transform.localScale = new Vector3(transform.localScale.x, startYScale, transform.localScale.z);
             rb.AddForce(currentGravity.normalized * 5f, ForceMode.Impulse);
         }
+
+        // start interaction
+        if (Input.GetKeyDown(interactionKey) && interaction != null)
+        {
+            interaction.InteractWithTarget();
+        }
     }
 
     private void StateHandler()
@@ -195,7 +204,7 @@ public class PlayerMovement : MonoBehaviour
             moveSpeed = 0;
             rb.linearVelocity = Vector3.zero;
         }
-        
+
         // Mode - Dashing
         else if (dashing)
         {
@@ -209,7 +218,7 @@ public class PlayerMovement : MonoBehaviour
             state = MovementState.wallrunning;
             desiredMoveSpeed = wallrunSpeed;
         }
-        
+
 
         // Mode - Sliding
         else if (sliding)
@@ -313,7 +322,7 @@ public class PlayerMovement : MonoBehaviour
             rb.AddForce(GetSlopeMoveDirection(moveDirection) * moveSpeed * 20f, ForceMode.Force);
 
             if (rb.linearVelocity.y > 0)
-                rb.AddForce(currentGravity.normalized * -80f, ForceMode.Force); 
+                rb.AddForce(currentGravity.normalized * -80f, ForceMode.Force);
         }
 
         // on ground
@@ -375,7 +384,7 @@ public class PlayerMovement : MonoBehaviour
         activeGrapple = true;
 
         velocityToSet = CalculateJumpVelocity(transform.position, targetPosition, trajectoryHeight);
-        SetVelocity(); 
+        SetVelocity();
 
         Invoke(nameof(ResetRestrictions), 3f);
     }
@@ -384,9 +393,9 @@ public class PlayerMovement : MonoBehaviour
     private void SetVelocity()
     {
         enableMovementOnNextTouch = true;
-        
+
         rb.useGravity = false;
-        rb.linearDamping = 0f; 
+        rb.linearDamping = 0f;
 
         rb.linearVelocity = velocityToSet;
 
@@ -415,21 +424,21 @@ public class PlayerMovement : MonoBehaviour
         return Vector3.ProjectOnPlane(direction, slopeHit.normal).normalized;
     }
 
-    
+
     private Vector3 CalculateJumpVelocity(Vector3 startPoint, Vector3 endPoint, float trajectoryHeight)
     {
         Vector3 gravityUp = -currentGravity.normalized;
-        float gravity = -gravityForce;                                                     
-        float displacementY = Vector3.Dot(endPoint - startPoint, gravityUp);               
-        Vector3 displacementXZ = Vector3.ProjectOnPlane(endPoint - startPoint, gravityUp); 
+        float gravity = -gravityForce;
+        float displacementY = Vector3.Dot(endPoint - startPoint, gravityUp);
+        Vector3 displacementXZ = Vector3.ProjectOnPlane(endPoint - startPoint, gravityUp);
 
-        if (trajectoryHeight < displacementY + 1.0f) 
+        if (trajectoryHeight < displacementY + 1.0f)
         {
-            trajectoryHeight = displacementY + 1.0f; 
+            trajectoryHeight = displacementY + 1.0f;
         }
 
         float time = Mathf.Sqrt(-2 * trajectoryHeight / gravity) + Mathf.Sqrt(2 * (displacementY - trajectoryHeight) / gravity);
-        Vector3 velocityY = gravityUp * Mathf.Sqrt(-2 * gravity * trajectoryHeight);      
+        Vector3 velocityY = gravityUp * Mathf.Sqrt(-2 * gravity * trajectoryHeight);
         Vector3 velocityXZ = displacementXZ / time;
 
         return velocityXZ + velocityY;
@@ -455,9 +464,9 @@ public class PlayerMovement : MonoBehaviour
             if (currentGravity != -wallNormal)
             {
                 currentGravity = -wallNormal;
-                lastGravityChangeTime = Time.time; 
-                
-                rb.linearVelocity = Vector3.zero; 
+                lastGravityChangeTime = Time.time;
+
+                rb.linearVelocity = Vector3.zero;
 
                 if (rotationCoroutine != null) StopCoroutine(rotationCoroutine);
                 rotationCoroutine = StartCoroutine(RotatePlayerToSurface(wallNormal, contactPoint));
@@ -469,39 +478,42 @@ public class PlayerMovement : MonoBehaviour
     private IEnumerator RotatePlayerToSurface(Vector3 targetUp, Vector3 contactPoint)
     {
         isTransitioning = true;
-        rb.isKinematic = true; 
+        rb.isKinematic = true;
 
         // 🌟 WallRunning 간섭 완벽 차단
         wallrunning = false;
         cam.DoFov(80f);
         cam.DoTilt(0f);
 
-        cam.enabled = false; 
+        cam.enabled = false;
 
         Behaviour cineBrain = cam.GetComponent("CinemachineBrain") as Behaviour;
         if (cineBrain != null) cineBrain.enabled = false;
 
         Quaternion startBodyRot = transform.rotation;
         Vector3 startPosition = transform.position;
-        Quaternion startCamRot = cam.camHolder.rotation; 
+        Quaternion startCamRot = cam.camHolder.rotation;
 
         float currentDist = Vector3.Dot(transform.position - contactPoint, targetUp);
-        float desiredDist = playerHeight * 0.5f + 0.1f; 
+        float desiredDist = playerHeight * 0.5f + 0.1f;
         Vector3 targetPosition = transform.position + targetUp * (desiredDist - currentDist);
 
         Vector3 currentForward = cam.camHolder.forward;
         Vector3 newForward = Vector3.ProjectOnPlane(currentForward, targetUp).normalized;
-        if (newForward.sqrMagnitude < 0.01f) 
+        if (newForward.sqrMagnitude < 0.01f)
         {
             newForward = Vector3.ProjectOnPlane(transform.up, targetUp).normalized;
         }
 
         fixedWallRotation = Quaternion.LookRotation(newForward, targetUp);
-        
+
         Quaternion targetCamRot;
-        if (Mathf.Abs(Vector3.Dot(currentForward, targetUp)) > 0.99f) {
+        if (Mathf.Abs(Vector3.Dot(currentForward, targetUp)) > 0.99f)
+        {
             targetCamRot = fixedWallRotation;
-        } else {
+        }
+        else
+        {
             targetCamRot = Quaternion.LookRotation(currentForward, targetUp);
         }
 
@@ -511,21 +523,21 @@ public class PlayerMovement : MonoBehaviour
         while (time < 1f)
         {
             time += Time.deltaTime / duration;
-            
-            transform.position = Vector3.Lerp(startPosition, targetPosition, time); 
+
+            transform.position = Vector3.Lerp(startPosition, targetPosition, time);
             transform.rotation = Quaternion.Slerp(startBodyRot, fixedWallRotation, time);
-            
+
             // 트랜지션 중에는 강제로 카메라의 월드 각도를 돌려줍니다.
             cam.camHolder.rotation = Quaternion.Slerp(startCamRot, targetCamRot, time);
 
             yield return null;
         }
 
-        transform.position = targetPosition; 
+        transform.position = targetPosition;
         transform.rotation = fixedWallRotation;
         cam.camHolder.rotation = targetCamRot;
 
-        if (targetUp == Vector3.up) 
+        if (targetUp == Vector3.up)
         {
             Vector3 finalCamForward = targetCamRot * Vector3.forward;
             float finalYaw = Mathf.Atan2(finalCamForward.x, finalCamForward.z) * Mathf.Rad2Deg;
@@ -535,21 +547,21 @@ public class PlayerMovement : MonoBehaviour
             // 유저님의 하이어라키 구조상 yRotation이 player와 camHolder에 두 번 들어가서 실제 화면은 2배로 돌아갑니다.
             // 따라서 우리가 구한 '진짜 월드 각도(finalYaw)'의 절반(/2f)만 넣어주어야 화면이 튀지 않고 딱 맞게 떨어집니다!
             cam.yRotation = finalYaw / 2f;
-            
+
             // xRotation(위아래 고개)은 camHolder에만 적용되므로 그대로 넣어줍니다.
             cam.xRotation = finalPitch;
         }
-        else 
+        else
         {
             // 벽에 붙었을 때는 로컬 좌표계를 0으로 초기화
             cam.xRotation = 0f;
             cam.yRotation = 0f;
         }
 
-        if (cineBrain != null) cineBrain.enabled = true; 
-        cam.enabled = true; 
+        if (cineBrain != null) cineBrain.enabled = true;
+        cam.enabled = true;
 
-        rb.isKinematic = false; 
+        rb.isKinematic = false;
         isTransitioning = false;
     }
 
@@ -681,7 +693,7 @@ public class PlayerMovement : MonoBehaviour
 //     {
 //         rb = GetComponent<Rigidbody>();
 //         rb.freezeRotation = true;
-        
+
 //         // 🌟 마법의 한 줄: 유니티의 기본 지구 중력을 꺼버립니다!
 //         // 이제 오직 우리가 만든 'currentGravity'만이 플레이어를 당깁니다.
 //         rb.useGravity = false; 
@@ -692,7 +704,7 @@ public class PlayerMovement : MonoBehaviour
 
 //     private void Update()
 //     {
-        
+
 //         //ground check
 //         grounded = Physics.Raycast(transform.position, currentGravity.normalized, playerHeight * 0.5f + 0.2f, whatIsGround);
 //         Debug.DrawRay(transform.position, currentGravity.normalized * (playerHeight * 0.5f + 0.2f), Color.red);
@@ -762,7 +774,7 @@ public class PlayerMovement : MonoBehaviour
 //             moveSpeed = 0;
 //             rb.linearVelocity = Vector3.zero;
 //         }
-        
+
 //         // Mode - Dashing
 //         else if (dashing)
 //         {
@@ -776,7 +788,7 @@ public class PlayerMovement : MonoBehaviour
 //             state = MovementState.wallrunning;
 //             desiredMoveSpeed = wallrunSpeed;
 //         }
-        
+
 
 //         // Mode - Sliding
 //         else if (sliding)
@@ -981,7 +993,7 @@ public class PlayerMovement : MonoBehaviour
 //     private void SetVelocity()
 //     {
 //         enableMovementOnNextTouch = true;
-        
+
 //         // 🌟 수정 2: 날아가는 동안 유니티 기본 마찰력(Drag)과 중력이 
 //         // 궤적을 갉아먹지 못하도록 강제로 꺼버립니다.
 //         rb.useGravity = false;
@@ -1015,7 +1027,7 @@ public class PlayerMovement : MonoBehaviour
 //         return Vector3.ProjectOnPlane(direction, slopeHit.normal).normalized;
 //     }
 
-    
+
 //     private Vector3 CalculateJumpVelocity(Vector3 startPoint, Vector3 endPoint, float trajectoryHeight)
 //     {
 //         Vector3 gravityUp = -currentGravity.normalized;
@@ -1060,7 +1072,7 @@ public class PlayerMovement : MonoBehaviour
 //             {
 //                 currentGravity = -wallNormal;
 //                 lastGravityChangeTime = Time.time; // 중력이 변한 시간 저장
-                
+
 //                 rb.linearVelocity = Vector3.zero; // 날아오던 관성 완전히 정지
 
 //                 if (rotationCoroutine != null) StopCoroutine(rotationCoroutine);
@@ -1103,7 +1115,7 @@ public class PlayerMovement : MonoBehaviour
 //         while (time < 1f)
 //         {
 //             time += Time.deltaTime / duration;
-            
+
 //             // 🌟 박제해둔 fixedWallRotation으로 부드럽게 Slerp 합니다.
 //             transform.rotation = Quaternion.Slerp(startRotation, fixedWallRotation, time);
 //             transform.position = Vector3.Lerp(startPosition, targetPosition, time); 
